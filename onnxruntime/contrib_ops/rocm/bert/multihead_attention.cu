@@ -58,9 +58,15 @@ Status MultiHeadAttention<T>::ComputeInternal(OpKernelContext* context) const {
   const Tensor* past_key = context->Input<Tensor>(6);
   const Tensor* past_value = context->Input<Tensor>(7);
 
-  // TODO: Add support for bias, key_padding_mask and attention cache.
-  ORT_ENFORCE(bias == nullptr && key_padding_mask == nullptr && past_key == nullptr && past_value == nullptr,
-              "bias, key_padding_mask and attention cache is not supported");
+  if (nullptr != bias) {
+    return ORT_MAKE_STATUS(ONNXRUNTIME, NOT_IMPLEMENTED,
+                           "qkv_bias is not supported on ROCm EP. "
+                           "User should fuse the qkv bias to qkv projection instead.");
+  }
+
+  // TODO: Add support for key_padding_mask and attention cache.
+  ORT_ENFORCE(key_padding_mask == nullptr && past_key == nullptr && past_value == nullptr,
+              "key_padding_mask and attention cache is not supported");
 
   auto& device_prop = GetDeviceProp();
   AttentionParameters attn;
