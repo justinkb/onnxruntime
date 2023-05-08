@@ -64,9 +64,8 @@ Status MultiHeadAttention<T>::ComputeInternal(OpKernelContext* context) const {
                            "User should fuse the qkv bias to qkv projection instead.");
   }
 
-  // TODO: Add support for key_padding_mask and attention cache.
-  ORT_ENFORCE(key_padding_mask == nullptr && past_key == nullptr && past_value == nullptr,
-              "key_padding_mask and attention cache is not supported");
+  // TODO: Add support for key_padding_mask.
+  ORT_ENFORCE(key_padding_mask == nullptr, "key_padding_mask is not supported");
 
   auto& device_prop = GetDeviceProp();
   AttentionParameters attn;
@@ -79,7 +78,10 @@ Status MultiHeadAttention<T>::ComputeInternal(OpKernelContext* context) const {
           num_heads_, mask_filter_value_, scale_,
           false, device_prop.maxThreadsPerBlock));
   // TODO: support more qkv formats
-  ORT_ENFORCE(attn.qkv_format == Q_KV_BSNH_BSN2H || attn.qkv_format == QKV_BSN3H, "Got ", attn.qkv_format);
+  bool is_cross_attention = attn.qkv_format == Q_BSNH_K_V_BNSH_CROSS && attn.pass_past_in_kv;
+  if (!(is_cross_attention || attn.qkv_format == QKV_BSN3H || attn.qkv_format == Q_KV_BSNH_BSN2H)) {
+    return ORT_MAKE_STATUS(ONNXRUNTIME, NOT_IMPLEMENTED, "qkv format is not supported, got ", attn.qkv_format);
+  }
 
   int sequence_length = attn.sequence_length;
 

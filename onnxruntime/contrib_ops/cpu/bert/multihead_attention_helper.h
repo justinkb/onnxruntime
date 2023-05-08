@@ -250,6 +250,7 @@ Status CheckInputs(const T* query,
       }
       v_hidden_size = static_cast<int>(value_dims[1]) * static_cast<int>(value_dims[3]);
       pass_past_in_kv = true;
+      qkv_format = Q_BSNH_K_V_BNSH_CROSS;
     }
   }
 

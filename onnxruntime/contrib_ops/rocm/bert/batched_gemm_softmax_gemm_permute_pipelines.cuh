@@ -96,6 +96,7 @@ std::tuple<const HipT*, const HipT*, const HipT*> GetQkvBuffers(
   switch (attn->qkv_format) {
     case Q_K_V_BNSH:
     case Q_K_V_BSNH:
+    case Q_BSNH_K_V_BNSH_CROSS:
       return {reinterpret_cast<const HipT*>(query),
               reinterpret_cast<const HipT*>(key),
               reinterpret_cast<const HipT*>(value)};
@@ -138,6 +139,12 @@ inline std::tuple<int4, int4, int4> GetQkvStrides(const AttentionParameters* att
       q_strides = {M * G1 * 3 * K, 3 * K, G1 * 3 * K, 1};  // [G0, M, G1, K] layout
       k_strides = {N * G1 * 3 * K, 3 * K, G1 * 3 * K, 1};  // [G0, N, G1, K] layout
       v_strides = {N * G1 * 3 * O, 3 * O, 1, G1 * 3 * O};  // [G0, N, G1, O] layout
+      break;
+    case Q_BSNH_K_V_BNSH_CROSS:
+      ORT_ENFORCE(K == O);
+      q_strides = {M * G1 * K, K, G1 * K, 1};
+      k_strides = {G1 * attn->kv_sequence_length * K, attn->kv_sequence_length * K, K, 1};
+      v_strides = {G1 * attn->kv_sequence_length * O, attn->kv_sequence_length * O, 1, O};
       break;
     default:
       break;
@@ -360,6 +367,7 @@ class GemmSoftmaxGemmPermuteTunableOp : public tunable::TunableOp<GemmSoftmaxGem
       case Q_K_V_BSNH:
       case Q_KV_BSNH_BSN2H:
       case QKV_BSN3H:
+      case Q_BSNH_K_V_BNSH_CROSS:
         return true;
       default:
         return false;
