@@ -4,6 +4,7 @@
 # --------------------------------------------------------------------------
 
 import itertools
+import warnings
 from collections import defaultdict
 from typing import Any, Dict, List, Set, Tuple
 
@@ -469,6 +470,9 @@ class GraphLowering:
                     if node.op_type == "Dropout":
                         self._kernel_nodes[-1].has_dropout = True
             self._kernel_nodes[-1].sub_nodes = sub_nodes
+
+        if any(kernel_node.has_dropout for kernel_node in self._kernel_nodes):
+            warnings.warn("Use triton's random for Dropout, ignore the random seed from ORT.", UserWarning)
 
         self._analyze_kernel_io_list()
         cross_kernel_arg_map = dict()

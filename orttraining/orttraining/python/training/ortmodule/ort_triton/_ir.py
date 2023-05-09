@@ -224,6 +224,7 @@ class ReduceForLoopEnd(ComputeNode):
     """
     shared-memory reduction
     """
+
     def __init__(self, reduce_nodes: List[ReduceNode], offset_calc: OffsetCalculator):
         super().__init__("", [], [])
         self.reduce_nodes: List[ReduceNode] = reduce_nodes

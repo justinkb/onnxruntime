@@ -157,7 +157,7 @@ class SortedGraph(object):
                 new_nodes = dispatch(node, self._graph, node_arg_infos=self._node_arg_infos)
                 if len(new_nodes) != 1 or new_nodes[0] != node:
                     new_nodes = topological_sort(node.input, new_nodes)
-                    self._sorted_nodes[pos: pos + 1] = new_nodes
+                    self._sorted_nodes[pos : pos + 1] = new_nodes
                     continue
             if node.op_type == "Constant":
                 value_attr = get_attribute(node, "value")
