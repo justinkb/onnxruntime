@@ -108,6 +108,7 @@ std::vector<std::unique_ptr<GraphTransformer>> GeneratePreTrainingTransformers(
       // Put ConstantSharing before CommonSubexpressionElimination by intention as it can create more opportunities for
       // CSE. For example, if A and B nodes both do Add operation with a same value but different initializers, by
       // default, CSE will not merge them, because the different initializers are represented by different NodeArg.
+      transformers.emplace_back(std::make_unique<LayerNormFusion>(compatible_eps));
       transformers.emplace_back(std::make_unique<ConstantSharing>(compatible_eps));
       // Remove duplicate nodes. Must be applied before any recompute transformations.
       if (config.gelu_recompute || config.attn_dropout_recompute || config.transformer_layer_recompute) {
@@ -117,7 +118,6 @@ std::vector<std::unique_ptr<GraphTransformer>> GeneratePreTrainingTransformers(
       }
 
       transformers.emplace_back(std::make_unique<GeluFusion>(compatible_eps));
-      transformers.emplace_back(std::make_unique<LayerNormFusion>(compatible_eps));
 #if defined(USE_CUDA) || defined(USE_ROCM)
       transformers.emplace_back(std::make_unique<SimplifiedLayerNormFusion>(compatible_eps,
                                                                             true /* skip_device_check*/));
