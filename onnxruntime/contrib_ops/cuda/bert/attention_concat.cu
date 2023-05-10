@@ -93,16 +93,16 @@ __global__ void ConcatTensorToTensorLarge(const int tensor_add_sequence_length,
 }
 
 Status LaunchConcatTensorToTensor(cudaStream_t stream,
-                                const int all_sequence_length,
-                                const int sequence_length,
-                                const int batch_size,
-                                const int head_size,
-                                const int num_heads,
-                                const int max_threads_per_block,
-                                const int matrix_num,
-                                const float* tensor_in,
-                                const float* tensor_add,
-                                float* tensor_out) {
+                                  const int all_sequence_length,
+                                  const int sequence_length,
+                                  const int batch_size,
+                                  const int head_size,
+                                  const int num_heads,
+                                  const int max_threads_per_block,
+                                  const int matrix_num,
+                                  const float* tensor_in,
+                                  const float* tensor_add,
+                                  float* tensor_out) {
   const dim3 grid(all_sequence_length, batch_size, matrix_num);
   if (0 == (head_size & 1)) {
     const int H = head_size / 2;
@@ -137,16 +137,16 @@ Status LaunchConcatTensorToTensor(cudaStream_t stream,
 }
 
 Status LaunchConcatTensorToTensor(cudaStream_t stream,
-                                const int all_sequence_length,
-                                const int sequence_length,
-                                const int batch_size,
-                                const int head_size,
-                                const int num_heads,
-                                const int max_threads_per_block,
-                                const int matrix_num,
-                                const half* tensor_in,
-                                const half* tensor_add,
-                                half* tensor_out) {
+                                  const int all_sequence_length,
+                                  const int sequence_length,
+                                  const int batch_size,
+                                  const int head_size,
+                                  const int num_heads,
+                                  const int max_threads_per_block,
+                                  const int matrix_num,
+                                  const half* tensor_in,
+                                  const half* tensor_add,
+                                  half* tensor_out) {
   const dim3 grid(all_sequence_length, batch_size, matrix_num);
   if (0 == (head_size % 4)) {
     const int H = head_size / 4;
@@ -197,15 +197,15 @@ Status LaunchConcatTensorToTensor(cudaStream_t stream,
 }
 
 Status LaunchConcatPastToPresent(cudaStream_t stream,
-                               const int all_sequence_length,
-                               const int sequence_length,
-                               const int batch_size,
-                               const int head_size,
-                               const int num_heads,
-                               const int max_threads_per_block,
-                               const float* past,
-                               const float* k_v,
-                               float* present) {
+                                 const int all_sequence_length,
+                                 const int sequence_length,
+                                 const int batch_size,
+                                 const int head_size,
+                                 const int num_heads,
+                                 const int max_threads_per_block,
+                                 const float* past,
+                                 const float* k_v,
+                                 float* present) {
   return LaunchConcatTensorToTensor(
       stream,
       all_sequence_length,
@@ -221,15 +221,15 @@ Status LaunchConcatPastToPresent(cudaStream_t stream,
 }
 
 Status LaunchConcatPastToPresent(cudaStream_t stream,
-                               const int all_sequence_length,
-                               const int sequence_length,
-                               const int batch_size,
-                               const int head_size,
-                               const int num_heads,
-                               const int max_threads_per_block,
-                               const half* past,
-                               const half* k_v,
-                               half* present) {
+                                 const int all_sequence_length,
+                                 const int sequence_length,
+                                 const int batch_size,
+                                 const int head_size,
+                                 const int num_heads,
+                                 const int max_threads_per_block,
+                                 const half* past,
+                                 const half* k_v,
+                                 half* present) {
   return LaunchConcatTensorToTensor(
       stream,
       all_sequence_length,
