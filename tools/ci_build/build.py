@@ -992,6 +992,7 @@ def generate_build_tree(
     if args.use_rocm:
         cmake_args.append("-Donnxruntime_ROCM_HOME=" + rocm_home)
         cmake_args.append("-Donnxruntime_ROCM_VERSION=" + args.rocm_version)
+        cmake_args.append("-Donnxruntime_BUILD_SHARED_LIB=ON")
     if args.use_tensorrt:
         cmake_args.append("-Donnxruntime_TENSORRT_HOME=" + tensorrt_home)
     if args.llvm_config:
