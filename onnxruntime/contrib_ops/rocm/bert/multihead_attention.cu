@@ -83,11 +83,13 @@ Status MultiHeadAttention<T>::ComputeInternal(OpKernelContext* context) const {
     return ORT_MAKE_STATUS(ONNXRUNTIME, NOT_IMPLEMENTED, "qkv format is not supported, got ", attn.qkv_format);
   }
 
-  int sequence_length = attn.sequence_length;
+  ORT_ENFORCE(false, "qkv format is not blah, got ", attn.qkv_format);
+
+  hipStream_t stream = Stream(context);
 
   TensorShapeVector output_shape(3);
   output_shape[0] = static_cast<int64_t>(attn.batch_size);
-  output_shape[1] = static_cast<int64_t>(sequence_length);
+  output_shape[1] = static_cast<int64_t>(attn.sequence_length);
   output_shape[2] = static_cast<int64_t>(attn.v_hidden_size);
   Tensor* output = context->Output(0, output_shape);
 
@@ -100,13 +102,58 @@ Status MultiHeadAttention<T>::ComputeInternal(OpKernelContext* context) const {
   TensorShape present_shape(present_dims);
   Tensor* present_key = context->Output(1, present_shape);
   Tensor* present_value = context->Output(2, present_shape);
-  // TODO: Add support for attention cache
-  ORT_ENFORCE(present_key == nullptr && present_value == nullptr, "attention cache is not supported");
 
   using HipT = typename ToHipType<T>::MappedType;
   using AttentionTunableOp = GemmSoftmaxGemmPermuteTunableOp<HipT>;
   auto workspace_bytes = AttentionTunableOp::GetWorkspaceNumBytes(&attn);
   auto workspace = GetScratchBuffer<void>(workspace_bytes, context->GetComputeStream());
+
+  const HipT* key_buffer = key == nullptr ? nullptr : reinterpret_cast<const HipT*>(key->DataRaw());
+  const HipT* value_buffer = value == nullptr ? nullptr : reinterpret_cast<const HipT*>(value->DataRaw());
+
+  if (nullptr != present_key) {
+    // const HipT* past_key_buffer = past_key == nullptr ? nullptr : reinterpret_cast<const HipT*>(past_key->DataRaw());
+    // const HipT* new_key_buffer = key_buffer;
+    auto present_key_buffer = reinterpret_cast<HipT*>(present_key->MutableDataRaw());
+
+    // int present_seqlen;
+    if (!attn.past_present_share_buffer) {
+      // present_seqlen = attn.total_sequence_length;
+      if (attn.qkv_format == Q_K_V_BSNH) {
+        // Copy past_k BxS'xNxH) => present_k Shape(BxNxS'xH):Stride(BxNxTxH)
+
+      } else if (attn.qkv_format == Q_K_V_BNSH || attn.qkv_format == Q_BSNH_K_V_BNSH_CROSS) {
+        // Copy past_k (BxNxS'xH) => present_k Shape(BxNxS'xH):Stride(BxNxTxH)
+      }
+    } else {
+      // present_seqlen =
+    }
+
+    // Concat past_k (BxNxS'xH) + k (BxNxSxH) => present_k (BxNxTxH)
+
+    // update pointers to present_k.
+    key_buffer = present_key_buffer;
+  }
+
+  if (nullptr != present_value) {
+    auto present_value_buffer = reinterpret_cast<HipT*>(present_value->MutableDataRaw());
+
+    const HipT* past_value_buffer = nullptr;
+    if (!attn.past_present_share_buffer) {
+      ORT_ENFORCE(past_value != nullptr);
+      past_value_buffer = reinterpret_cast<const HipT*>(past_value->DataRaw());
+    }
+
+    // Concat past_v (BxNxS'xH) + v (BxNxSxH) => present_v (BxNxTxH)
+    ORT_RETURN_IF_ERROR(LaunchConcatTensorToTensor(
+        stream,
+        attn.total_sequence_length, attn.sequence_length, attn.batch_size, attn.v_head_size, attn.num_heads,
+        device_prop.maxThreadsPerBlock, /*matrix_num=*/1,
+        past_value_buffer, value_buffer, present_value_buffer));
+
+    // update pointers to present_v.
+    value_buffer = present_value_buffer;
+  }
 
   GemmSoftmaxGemmPermuteParams<HipT> params;
   params.tuning_ctx = GetTuningContext();
@@ -117,9 +164,9 @@ Status MultiHeadAttention<T>::ComputeInternal(OpKernelContext* context) const {
   params.scale = scale_ == 0 ? 1.0f / sqrt(attn.head_size) : scale_;
   std::tie(params.q_buffer, params.k_buffer, params.v_buffer) = GetQkvBuffers<HipT>(
       &attn,
-      query->DataRaw(),
-      key == nullptr ? nullptr : key->DataRaw(),
-      value == nullptr ? nullptr : value->DataRaw());
+      reinterpret_cast<const HipT*>(query->DataRaw()),
+      key_buffer,
+      value_buffer);
   params.out_buffer = reinterpret_cast<HipT*>(output->MutableDataRaw());
 
   if (relative_position_bias != nullptr) {
