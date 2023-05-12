@@ -6,8 +6,12 @@ from onnx import TensorProto, helper
 from transformers import WhisperConfig
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
-from benchmark_helper import Precision # noqa: E402
-from convert_generation import get_shared_initializers, update_decoder_subgraph_share_buffer_and_use_decoder_masked_mha  # noqa: E402
+from benchmark_helper import Precision  # noqa: E402
+from convert_generation import (  # noqa: E402
+    get_shared_initializers,
+    update_decoder_subgraph_share_buffer_and_use_decoder_masked_mha,
+)
+
 
 def add_attention_mask(model):
     # Add attention mask - required by BeamSearch but unused in Pytorch
@@ -105,7 +109,6 @@ def chain_model(args):
             helper.make_attribute("encoder", encoder_model.graph),
         ]
     )
-
 
     opset_import = [helper.make_opsetid(domain="com.microsoft", version=1), helper.make_opsetid(domain="", version=17)]
 
