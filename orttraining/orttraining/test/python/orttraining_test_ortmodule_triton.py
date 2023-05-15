@@ -13,7 +13,7 @@ from torch._C import _from_dlpack
 from torch.utils.dlpack import to_dlpack
 
 from onnxruntime.training.ortmodule import DebugOptions, ORTModule
-from onnxruntime.training.ortmodule.ort_triton import execute_triton_op
+from onnxruntime.training.ortmodule.ort_triton import call_triton_by_name, call_triton_by_onnx
 
 pytest.importorskip("triton")
 
@@ -169,7 +169,7 @@ def _run_op_test(op_type, onnx_dtype, create_model_func, gen_inputs_func, **kwar
     ort_inputs = [tensor.to(torch.uint8) if tensor.dtype == torch.bool else tensor for tensor in ort_inputs]
     pt_outputs = TorchFuncExecutor.run(op_type, *pt_inputs, **kwargs)
     model_str = create_model_func(op_type, onnx_dtype, **kwargs).SerializeToString()
-    ort_outputs = execute_triton_op("", hash(model_str), model_str, *[to_dlpack(tensor) for tensor in ort_inputs])
+    ort_outputs = call_triton_by_onnx(hash(model_str), model_str, *[to_dlpack(tensor) for tensor in ort_inputs])
     if isinstance(pt_outputs, tuple):
         assert isinstance(ort_outputs, tuple)
         assert len(pt_outputs) == len(ort_outputs)
@@ -379,7 +379,7 @@ def test_dropout_op(onnx_dtype, input_shape_and_ratio):
         torch.randn(*input_shape_and_ratio[0], dtype=torch_dtype, device=DEVICE),
         torch.randn(*input_shape_and_ratio[0], dtype=torch_dtype, device=DEVICE),
     ]
-    outputs = execute_triton_op("", hash(model_str), model_str, *[to_dlpack(t) for t in input_tensor])
+    outputs = call_triton_by_onnx(hash(model_str), model_str, *[to_dlpack(t) for t in input_tensor])
     y1, mask1, y2, mask2 = tuple([_from_dlpack(o).detach().cpu().numpy().flatten() for o in outputs])
     x1 = (input_tensor[0] + input_tensor[1]).detach().cpu().numpy().flatten()
     x2 = y1 * mask1 + input_tensor[2].detach().cpu().numpy().flatten()
@@ -529,6 +529,44 @@ def test_layer_norm_op(onnx_dtype, input_shape_and_axis):
 
     kwargs = {"axis": input_shape_and_axis[1]}
     _run_op_test("LayerNormalization", onnx_dtype, _create_model, _gen_inputs, **kwargs)
+
+
+@pytest.mark.parametrize("dtype", [torch.float, torch.float16])
+@pytest.mark.parametrize("m_n_k", [(2, 3, 4), (768, 64, 128)])
+def test_mm(dtype, m_n_k):
+    m, n, k = m_n_k
+    pt_inputs = [
+        torch.rand(m, k, dtype=dtype, device=DEVICE),
+        torch.rand(k, n, dtype=dtype, device=DEVICE),
+    ]
+    ort_inputs = copy.deepcopy(pt_inputs)
+    pt_output = torch.mm(*pt_inputs)
+    ort_output = call_triton_by_name("mm", *[to_dlpack(tensor) for tensor in ort_inputs])
+    rtol = 1e-03 if dtype == torch.float16 else 1e-04
+    atol = 1e-03 if dtype == torch.float16 else 1e-05
+    _test_helpers.assert_values_are_close(pt_output, _from_dlpack(ort_output), rtol=rtol, atol=atol)
+
+
+@pytest.mark.parametrize("dtype", [torch.float, torch.float16])
+@pytest.mark.parametrize("input_shapes", [([2, 3, 3, 3], [2, 3, 3, 3]), ([64, 128, 768], [64, 768, 64])])
+def test_bmm(dtype, input_shapes):
+    pt_inputs = [
+        torch.rand(*input_shapes[0], dtype=dtype, device=DEVICE),
+        torch.rand(*input_shapes[1], dtype=dtype, device=DEVICE),
+    ]
+    ort_inputs = copy.deepcopy(pt_inputs)
+    need_reshape = False
+    if len(input_shapes[0]) > 3:
+        need_reshape = True
+        pt_inputs[0] = pt_inputs[0].reshape(-1, input_shapes[0][-2], input_shapes[0][-1])
+        pt_inputs[1] = pt_inputs[1].reshape(-1, input_shapes[1][-2], input_shapes[1][-1])
+    pt_output = torch.bmm(*pt_inputs)
+    if need_reshape:
+        pt_output = pt_output.reshape(input_shapes[0][:-2] + [input_shapes[0][-2], input_shapes[1][-1]])
+    ort_output = call_triton_by_name("bmm", *[to_dlpack(tensor) for tensor in ort_inputs])
+    rtol = 1e-03 if dtype == torch.float16 else 1e-04
+    atol = 1e-03 if dtype == torch.float16 else 1e-05
+    _test_helpers.assert_values_are_close(pt_output, _from_dlpack(ort_output), rtol=rtol, atol=atol)
 
 
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])

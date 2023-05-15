@@ -33,20 +33,26 @@ Status TritonOp::Compute(OpKernelContext* context) const {
   size_t output_size = static_cast<size_t>(p_ctx_internal->OutputCount());
 
   ORT_ENFORCE(TritonOpExecutor::Instance().IsInitialized());
-  auto executor = TritonOpExecutor::Instance().GetExecutor();
+  bool call_by_name = func_name_ != "";
+  auto executor = call_by_name ? TritonOpExecutor::Instance().GetExecutorByName()
+                               : TritonOpExecutor::Instance().GetExecutorByOnnx();
+  size_t extra_input_size = call_by_name ? 1 : 2;
 
-  PythonObjectPtr args(PyTuple_New(static_cast<Py_ssize_t>(3 + input_size)), PythonObjectDeleter);
+  PythonObjectPtr args(PyTuple_New(static_cast<Py_ssize_t>(extra_input_size + input_size)), PythonObjectDeleter);
   ORT_ENFORCE(args, "Failed to create input tuple.");
-  PyTuple_SetItem(args.get(), 0, PyUnicode_FromString(func_name_.c_str()));
-  PyTuple_SetItem(args.get(), 1, PyLong_FromLongLong(static_cast<long long>(onnx_key_)));
-  PyTuple_SetItem(args.get(), 2, PyBytes_FromStringAndSize(onnx_string_.c_str(), onnx_string_.size()));
+  if (call_by_name) {
+    PyTuple_SetItem(args.get(), 0, PyUnicode_FromString(func_name_.c_str()));
+  } else {
+    PyTuple_SetItem(args.get(), 0, PyLong_FromLongLong(static_cast<long long>(onnx_key_)));
+    PyTuple_SetItem(args.get(), 1, PyBytes_FromStringAndSize(onnx_string_.c_str(), onnx_string_.size()));
+  }
   for (size_t i = 0; i < input_size; ++i) {
     const OrtValue* ort_value = p_ctx_internal->GetInputMLValue(static_cast<int>(i));
     if (!ort_value) {
-      PyTuple_SetItem(args.get(), static_cast<Py_ssize_t>(i + 3), Py_None);
+      PyTuple_SetItem(args.get(), static_cast<Py_ssize_t>(extra_input_size + i), Py_None);
       Py_INCREF(Py_None);
     } else {
-      PyTuple_SetItem(args.get(), static_cast<Py_ssize_t>(i + 3),
+      PyTuple_SetItem(args.get(), static_cast<Py_ssize_t>(extra_input_size + i),
                       ToDlpack(*p_ctx_internal->GetInputMLValue(static_cast<int>(i))));
     }
   }

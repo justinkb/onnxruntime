@@ -20,18 +20,23 @@ class TritonOpExecutor final {
     return instance;
   }
 
-  void Initialize(PyObject* config_getter, PyObject* executor) {
-    ORT_ENFORCE(config_getter_.get() == nullptr && executor_.get() == nullptr && config_getter != nullptr &&
-                executor != nullptr);
+  void Initialize(PyObject* config_getter, PyObject* executor_by_name, PyObject* executor_by_onnx) {
+    ORT_ENFORCE(config_getter_.get() == nullptr && config_getter != nullptr && executor_by_name_.get() == nullptr &&
+                executor_by_name != nullptr && executor_by_onnx_.get() == nullptr && executor_by_onnx != nullptr);
     Py_INCREF(config_getter);
-    Py_INCREF(executor);
+    Py_INCREF(executor_by_name);
+    Py_INCREF(executor_by_onnx);
     PythonObjectPtr config_getter_ptr(config_getter, PythonObjectDeleter);
     config_getter_ = std::move(config_getter_ptr);
-    PythonObjectPtr executor_ptr(executor, PythonObjectDeleter);
-    executor_ = std::move(executor_ptr);
+    PythonObjectPtr executor_by_name_ptr(executor_by_name, PythonObjectDeleter);
+    executor_by_name_ = std::move(executor_by_name_ptr);
+    PythonObjectPtr executor_by_onnx_ptr(executor_by_onnx, PythonObjectDeleter);
+    executor_by_onnx_ = std::move(executor_by_onnx_ptr);
   }
 
-  bool IsInitialized() { return config_getter_.get() != nullptr && executor_.get() != nullptr; }
+  bool IsInitialized() {
+    return config_getter_.get() != nullptr && executor_by_name_.get() != nullptr && executor_by_onnx_.get() != nullptr;
+  }
 
   std::string GetConfigJson() {
     ORT_ENFORCE(config_getter_.get() != nullptr);
@@ -42,14 +47,20 @@ class TritonOpExecutor final {
     return std::string(buffer, length);
   }
 
-  PyObject* GetExecutor() {
-    ORT_ENFORCE(executor_.get() != nullptr);
-    return executor_.get();
+  PyObject* GetExecutorByName() {
+    ORT_ENFORCE(executor_by_name_.get() != nullptr);
+    return executor_by_name_.get();
+  }
+
+  PyObject* GetExecutorByOnnx() {
+    ORT_ENFORCE(executor_by_onnx_.get() != nullptr);
+    return executor_by_onnx_.get();
   }
 
  private:
   PythonObjectPtr config_getter_;
-  PythonObjectPtr executor_;
+  PythonObjectPtr executor_by_name_;
+  PythonObjectPtr executor_by_onnx_;
 };
 
 }  // namespace contrib

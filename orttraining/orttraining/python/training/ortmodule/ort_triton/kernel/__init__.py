@@ -4,9 +4,12 @@
 # --------------------------------------------------------------------------
 
 from ._slice_scel import transform_slice_scel, triton_slice_scel, triton_slice_scel_backward
+from ._mm import mm, bmm
 
 __all__ = [
     "triton_slice_scel",
     "triton_slice_scel_backward",
     "transform_slice_scel",
+    "mm",
+    "bmm",
 ]
